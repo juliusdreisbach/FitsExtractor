@@ -38,7 +38,7 @@ class FileSizeApp(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"FITS Extractor {version}")
-        self.geometry("550x280")
+        self.geometry("550x300")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
         self.all_loaded_files = []
         self.drop_disabled = False
@@ -66,7 +66,7 @@ class FileSizeApp(TkinterDnD.Tk):
         self.drop_frame.drop_target_register(DND_FILES)
         self.drop_frame.dnd_bind("<<Drop>>", self.on_drop)
 
-        self.path_label = ttk.Label(self.left_frame, text="Path: -", font=("Arial", 8), wraplength=350)
+        self.path_label = ttk.Label(self.left_frame, text="Path: -", font=("Arial", 8))
         self.path_label.pack(pady=2)
 
         # GUI frame for file information
@@ -117,13 +117,20 @@ class FileSizeApp(TkinterDnD.Tk):
         self.use_status_checkbox = ttk.Checkbutton(self.right_frame, text="Use Status Key", variable=self.use_status_key, state=tk.DISABLED, command=self.toggle_combobox_activation)
         self.use_status_checkbox.pack(pady=5)
 
+        self.options_frame = ttk.Frame(self.left_frame)
+        self.options_frame.pack(pady=5)
+
+        self.do_normalize = tk.BooleanVar(value=True)
+        self.do_normalize_checkbox = ttk.Checkbutton(self.options_frame, text="Perform Normalization", variable=self.do_normalize)
+        self.do_normalize_checkbox.pack(side="left", padx=(0, 10))
+
+        self.do_plot = tk.BooleanVar(value=False)
+        self.show_plot_checkbox = ttk.Checkbutton(self.options_frame, text="Plot Extracted Spectra", variable=self.do_plot)
+        self.show_plot_checkbox.pack(side="left", padx=(0, 10))
+
         # GUI frame for spectra extraction
         self.extraction_frame = ttk.Frame(self.left_frame)
         self.extraction_frame.pack(pady=5)
-
-        self.do_plot = tk.BooleanVar(value=False)
-        self.show_plot_checkbox = ttk.Checkbutton(self.extraction_frame, text="Plot Extracted Spectra", variable=self.do_plot)
-        self.show_plot_checkbox.pack(side="left", padx=(0, 10))
 
         # extraction button
         self.extraction_button = ttk.Button(self.extraction_frame, text="Extract .fits Spectra", state=tk.DISABLED, command=self.extract_spectra)
@@ -155,7 +162,9 @@ class FileSizeApp(TkinterDnD.Tk):
         raw_path = event.data.strip()
         path = raw_path.strip("{}")
 
-        self.path_label.config(text=f"Path: {path}")
+        s_maxlength = 60
+        s = path[:s_maxlength] + "..." if len(path) > s_maxlength else path
+        self.path_label.config(text=f"Path: {s}")
 
         if not os.path.exists(path):
             self.result_label.config(text="err: Invalid path")
@@ -273,7 +282,7 @@ class FileSizeApp(TkinterDnD.Tk):
         for file in self.all_loaded_files:
             #thread = threading.Thread(target=create_spectrum, args=(file, self.do_plot.get()), daemon=True).start()
             print(f"--###-- {i}/{len(self.all_loaded_files)} --###--")
-            extr_status = create_spectrum(file, key_values, do_cont_extract=self.use_continuum_key.get(), do_status_extract=self.use_status_key.get(), show_plot=self.do_plot.get())
+            extr_status = create_spectrum(file, key_values, do_cont_extract=self.use_continuum_key.get(), do_status_extract=self.use_status_key.get(), do_normalize=self.do_normalize.get(), show_plot=self.do_plot.get())
             if extr_status:
                 extr += 1
             else:
@@ -296,6 +305,29 @@ class FileSizeApp(TkinterDnD.Tk):
 
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
+
+def normalize(flux_values, flux_err_values):
+    """
+    How this works: Generate a maximum flux value as median from a small window around the actual flux maximum.
+    This prevents the maximum to be without any error value when normalized.
+    """
+
+    imax = np.argmax(flux_values)
+    win = 5  # window half-width for maximum determination
+    i0, i1 = max(0, imax-win), min(len(flux_values), imax+win+1)
+    f_max = np.median(flux_values[i0:i1])
+
+    if f_max < 0:
+        return flux_values, flux_err_values, 2
+
+    err_noise = np.median(flux_err_values)
+    err_f_max = err_noise / np.sqrt(i1-i0)
+
+    # normalize flux and error values
+    flux_norm = flux_values / f_max
+    err_norm = np.sqrt((flux_err_values / f_max)**2 + (flux_values * err_f_max / f_max**2)**2)
+
+    return flux_norm, err_norm, 0
 
 def check_file(file_path):
     print(f"Checking for compatibility: {file_path}", end = ' ')
@@ -329,7 +361,7 @@ def check_file(file_path):
         print("err: File throws error when extracting!")
         return False
 
-def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_extract = False, show_plot = True):
+def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_extract = False, do_normalize = False, show_plot = True):
     print(f"Now extracting: {file_path}", end = ' ')
 
     filename_full = os.path.basename(file_path)
@@ -374,7 +406,7 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         print("err: File throws error when extracting!")
         return False
 
-    print("[1/6] Extracted data.")
+    print("--- Extracted data.")
 
     if do_status_extract:
         # Filter by status int
@@ -397,7 +429,7 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         plt.xlabel(f"Wavelength ({wv_unit})")
         plt.ylabel("Flux")
 
-    print("[2/6] Filtered data.")
+    print("--- Filtered data.")
 
     delta_wave = np.diff(wave_flat)
     mean_delta = np.mean(delta_wave)
@@ -415,13 +447,26 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
 
     #print(f"[INFO] wavelength_delta (interpolated): {new_wv_delta} {wv_unit}")
 
-    print("[3/6] Interpolated wavelengths.")
+    print("--- Interpolated wavelengths.")
+
+    if do_normalize:
+        norm_flux, norm_err, norm_status = normalize(new_flux, new_err)
+        match norm_status:
+            case 0:
+                print("--- Normalized flux values.")
+            case 1:
+                print("-!- Flux normalization cancelled (unknown error) [error code 1]")
+            case 2:
+                print("-!- Flux normalization cancelled: Flux is negative. [error code 2]") 
+    else:
+        norm_flux = new_flux
+        norm_err = new_err
 
     # Create 1D flux / errors
-    hdu = fits.PrimaryHDU(data=new_flux)
-    hdu_err = fits.PrimaryHDU(data=new_err)
+    hdu = fits.PrimaryHDU(data=norm_flux)
+    hdu_err = fits.PrimaryHDU(data=norm_err)
 
-    print("[4/6] Created new HDUs.")
+    print("--- Created new HDUs.")
 
     # Save header data
     header = hdu.header
@@ -442,11 +487,25 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     header_err['CRDER1'] = std_delta
     header_err['CTYPE1'] = 'WAVELENGTH'
 
-    print("[5/6] Saved headers.")
+    print("--- Saved headers.")
 
     id = id_generator(5, "abcdefghik123456")
-    new_filename = folder_name + "/" + filename + "_" + obj_name + "_" + id + "_interp_spec.fits"
-    new_filename_err = folder_name + "/" + filename + "_" + obj_name + "_" + id + "_interp_err.fits"
+
+    interp_spec = "_interp"
+    interp_err = "_interp"
+
+    if do_status_extract:
+        interp_spec += "_stat"
+        interp_err += "_stat"
+    if do_normalize:
+        interp_spec += f"_norm{norm_status}"
+        interp_err += f"_norm{norm_status}"
+
+    interp_spec += "_spec.fits"
+    interp_err += "_err.fits"
+
+    new_filename = folder_name + "/" + filename + "_" + obj_name + "_" + id + interp_spec
+    new_filename_err = folder_name + "/" + filename + "_" + obj_name + "_" + id + interp_err
 
     if not os.path.isdir(folder_name):
         os.mkdir(folder_name)
@@ -454,7 +513,7 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     hdu.writeto(new_filename, overwrite=True)
     hdu_err.writeto(new_filename_err, overwrite=True)
 
-    print(f"[6/6] Files {new_filename}, {new_filename_err} created (Generated ID: {id}).")
+    print(f"--- Files {new_filename}, {new_filename_err} created (Generated ID: {id}).")
 
     if show_plot:
         plt.show()
