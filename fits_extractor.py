@@ -14,6 +14,7 @@ from astropy.io import fits
 import numpy as np
 import os
 from scipy.interpolate import interp1d
+from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 import string
 import random
@@ -38,7 +39,7 @@ class FileSizeApp(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"FITS Extractor {version}")
-        self.geometry("550x300")
+        self.geometry("590x300")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
         self.all_loaded_files = []
         self.drop_disabled = False
@@ -55,7 +56,7 @@ class FileSizeApp(TkinterDnD.Tk):
 
         ttk.Label(self.left_frame, text="How To Use: (1) Provide a file or directory (2) Load key values\n(3) Select the correct key values (4) Extract .fits spectra", font=("Arial", 9)).pack(pady=5)
 
-        self.drop_frame = ttk.Frame(self.left_frame, width=350, height=100, relief="solid", borderwidth=1)
+        self.drop_frame = ttk.Frame(self.left_frame, width=400, height=100, relief="solid", borderwidth=1)
         self.drop_frame.pack(pady=5)
         self.drop_frame.pack_propagate(False)
 
@@ -122,11 +123,15 @@ class FileSizeApp(TkinterDnD.Tk):
 
         self.do_interpolate = tk.BooleanVar(value=True)
         self.do_interpolate_checkbox = ttk.Checkbutton(self.options_frame, text="Interpolate Values", variable=self.do_interpolate)
-        self.do_interpolate_checkbox.pack(side="left", padx=(0, 10))
+        self.do_interpolate_checkbox.pack(side="left", padx=(0, 5))
 
-        self.do_normalize = tk.BooleanVar(value=True)
+        self.do_cont_subtraction = tk.BooleanVar(value=True)
+        self.do_cont_subtraction_checkbox = ttk.Checkbutton(self.options_frame, text="Subtract Continuum", variable=self.do_cont_subtraction)
+        self.do_cont_subtraction_checkbox.pack(side="left", padx=(0, 5))
+
+        self.do_normalize = tk.BooleanVar(value=False)
         self.do_normalize_checkbox = ttk.Checkbutton(self.options_frame, text="Perform Normalization", variable=self.do_normalize)
-        self.do_normalize_checkbox.pack(side="left", padx=(0, 10))
+        self.do_normalize_checkbox.pack(side="left", padx=(0, 5))
 
         # GUI frame for spectra extraction
         self.extraction_frame = ttk.Frame(self.left_frame)
@@ -287,7 +292,7 @@ class FileSizeApp(TkinterDnD.Tk):
         for file in self.all_loaded_files:
             #thread = threading.Thread(target=create_spectrum, args=(file, self.do_plot.get()), daemon=True).start()
             print(f"--###-- {i}/{len(self.all_loaded_files)} --###--")
-            extr_status = create_spectrum(file, key_values, do_cont_extract=self.use_continuum_key.get(), do_status_extract=self.use_status_key.get(), do_interpolate=self.do_interpolate.get(), do_normalize=self.do_normalize.get(), show_plot=self.do_plot.get())
+            extr_status = create_spectrum(file, key_values, do_cont_extract=self.use_continuum_key.get(), do_status_extract=self.use_status_key.get(), do_interpolate=self.do_interpolate.get(), do_continuum_removal = self.do_cont_subtraction.get(), do_normalize=self.do_normalize.get(), show_plot=self.do_plot.get())
             if extr_status:
                 extr += 1
             else:
@@ -334,7 +339,8 @@ def normalize_cont(flux_values, flux_err_values, cont_values):
             return flux_values, flux_err_values, 3 # cont & flux differ in length
 
         return flux_norm, err_norm, 0
-    except:
+    except Exception as e:
+        print(f"Unknown error: {e}")
         return flux_values, flux_err_values, 1
 
 def normalize_max(flux_values, flux_err_values):
@@ -359,8 +365,58 @@ def normalize_max(flux_values, flux_err_values):
         err_norm = np.sqrt((flux_err_values / f_max)**2 + (flux_values * err_f_max / f_max**2)**2)
 
         return flux_norm, err_norm, 0
-    except:
+    except Exception as e:
+        print(f"Unknown error: {e}")
         return flux_values, flux_err_values, 1
+
+def subtract_continuum(flux, cont):
+    flx_len = len(flux)
+    cnt_len = len(cont)
+
+    flux_sub = []
+    if flx_len == cnt_len:
+        for i in range(flx_len):
+            flux_sub.append(flux[i]-cont[i])
+    else:
+        return False # cont & flux differ in length
+
+    return np.array(flux_sub)
+
+def savgol_smooth(flux, window=51, poly=3, err=None):
+    """
+    Use Savitzky-Golay filtering to smooth spectrum. 
+    
+    Parameters
+    ---------
+    flux : array
+        raw flux values
+    window : int, optional
+        smoothing window size (odd parity)
+    poly : int, optional
+        polynomial degree
+    err : array_like or None
+        optional flux error values
+    
+    Returns
+    --------
+    smooth_flux : ndarray
+        Smoothened flux values
+    smooth_err : ndarray or None
+        Smoothened flux error values (None if none given)
+    """
+    # Make window size odd if needed
+    if window % 2 == 0:
+        window += 1
+    if window <= poly:
+        window = poly + 3 - (poly % 2)  # Set minimum size
+    
+    smooth_flux = savgol_filter(flux, window_length=window, polyorder=poly)
+
+    if err is None:
+        return smooth_flux, None
+    else:
+        smooth_err = savgol_filter(err, window_length=window, polyorder=poly)
+        return smooth_flux, smooth_err
 
 def check_file(file_path):
     print(f"Checking for compatibility: {file_path}", end = ' ')
@@ -394,7 +450,7 @@ def check_file(file_path):
         print("err: File throws error when extracting!")
         return False
 
-def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_extract = False, do_interpolate = False, do_normalize = False, show_plot = True):
+def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_extract = False, do_interpolate = False, do_continuum_removal = False, do_normalize = False, show_plot = True):
     print(f"Now extracting: {file_path}", end = ' ')
 
     filename_full = os.path.basename(file_path)
@@ -456,14 +512,6 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     if do_cont_extract:
         cont_flat = cont[0].flatten()
 
-    if show_plot:
-        plt.figure(figsize=(8,5))
-        plt.errorbar(wave_flat, flux_flat, yerr=err_flat, fmt='none', ecolor='#33FF33')
-        plt.plot(wave_flat, flux_flat, 'b')
-        plt.title("Data Plot")
-        plt.xlabel(f"Wavelength ({wv_unit})")
-        plt.ylabel("Flux")
-
     print("--- Filtered data.")
 
     delta_wave = np.diff(wave_flat)
@@ -474,13 +522,6 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     #print(f"[INFO] mean_delta: {mean_delta} {wv_unit}; std_delta: {std_delta} {wv_unit}; rel_std: {rel_std*100} %")
 
     if do_interpolate:
-        """
-        print("min, max (raw):", wave_flat.min(), wave_flat.max())
-        print("min, max (finite):", np.nanmin(wave_flat), np.nanmax(wave_flat))
-        print("any NaN/Inf in wavelength?", np.any(~np.isfinite(wave_flat)))
-        print("smallest 5 values:", np.sort(wave_flat)[:5])
-        print("largest 5 values:", np.sort(wave_flat)[-5:])
-        """
         new_wave = np.linspace(wave_flat.min(), wave_flat.max(), len(wave_flat))
         flux_interp = interp1d(wave_flat, flux_flat, kind='linear', fill_value='extrapolate')
         err_interp = interp1d(wave_flat, err_flat, kind='linear', fill_value='extrapolate')
@@ -492,19 +533,32 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         new_wv_delta = new_wave[1] - new_wave[0]
         print("--- Interpolated wavelengths.")
     else:
-        # Somehow, this does weird things with the spectrum, e.g. compressing it. Flux and wavelength values are not where they are shown to be in the raw data. Why?
+        # Note that this is not exact, in order to be able to construct this data without binary tables the wavelength delta needs to be constant over the whole spectrum, essentially shifting 
+        # flux values to new wavelengths without correcting for error (do_interpolate does that). It is recommended to activate interpolation if the wavelength delta is not constant beforehand.
         new_wave = wave_flat
         new_flux = flux_flat
         new_err = err_flat
         if do_cont_extract:
             new_cont = cont_flat
-        new_wv_delta = np.median(np.diff(new_wave))
+        new_wv_delta = (new_wave[-1] - new_wave[0]) / (len(new_wave) - 1)
 
-    #print(f"[INFO] wavelength_delta (interpolated): {new_wv_delta} {wv_unit}")
+    if do_continuum_removal:
+        smooth_flux, _ = savgol_smooth(new_flux,round(len(new_flux)/15),3,new_err)
+        if do_cont_extract:
+            cont_flux = subtract_continuum(new_flux, new_cont)
+        else:
+            cont_flux = subtract_continuum(new_flux, smooth_flux)
+        cont_err = new_err
+        print("--- Fitted and subtracted continuum.")
+    else:
+        cont_flux = new_flux
+        cont_err = new_err
 
     if do_normalize:
+        # Continuum normalization deactivated until further notice
+        """
         if do_cont_extract:
-            norm_flux, norm_err, norm_status = normalize_cont(new_flux, new_err, new_cont)
+            norm_flux, norm_err, norm_status = normalize_cont(cont_flux, cont_err, new_cont)
             match norm_status:
                 case 0:
                     print("--- Normalized flux values with respect to continuum.")
@@ -515,17 +569,18 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
                 case 3:
                     print("-!- Flux normalization cancelled: Flux and Continuum differ in length. [error code 3]") 
         else:
-            norm_flux, norm_err, norm_status = normalize_max(new_flux, new_err)
-            match norm_status:
-                case 0:
-                    print("--- Normalized flux values with respect to maximum flux.")
-                case 1:
-                    print("-!- Flux normalization cancelled (unknown error) [error code 1]")
-                case 2:
-                    print("-!- Flux normalization cancelled: Flux is negative. [error code 2]") 
+        """
+        norm_flux, norm_err, norm_status = normalize_max(cont_flux, cont_err)
+        match norm_status:
+            case 0:
+                print("--- Normalized flux values with respect to maximum flux.")
+            case 1:
+                print("-!- Flux normalization cancelled (unknown error) [error code 1]")
+            case 2:
+                print("-!- Flux normalization cancelled: Flux is negative. [error code 2]") 
     else:
-        norm_flux = new_flux
-        norm_err = new_err
+        norm_flux = cont_flux
+        norm_err = cont_err
 
     # Create 1D flux / errors
     hdu = fits.PrimaryHDU(data=norm_flux)
@@ -565,13 +620,19 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     if do_status_extract:
         final_spec += "_stat"
         final_err += "_stat"
+    if do_continuum_removal:
+        final_spec += "_cntrm"
+        final_err += "_cntrm"
     if do_normalize:
+        # Deactivated until further notice
+        """
         if do_cont_extract:
             final_spec += f"_cnorm{norm_status}"
             final_err += f"_cnorm{norm_status}"
         else:
-            final_spec += f"_norm{norm_status}"
-            final_err += f"_norm{norm_status}"
+        """
+        final_spec += f"_norm{norm_status}"
+        final_err += f"_norm{norm_status}"
 
     final_spec += "_spec.fits"
     final_err += "_err.fits"
@@ -588,6 +649,12 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     print(f"--- Files {new_filename}, {new_filename_err} created (Generated ID: {id}).")
 
     if show_plot:
+        plt.figure(figsize=(8,5))
+        plt.errorbar(new_wave, norm_flux, yerr=norm_err, fmt='none', ecolor='#33FF33')
+        plt.plot(new_wave, norm_flux, 'b')
+        plt.title("Data Plot")
+        plt.xlabel(f"Wavelength ({wv_unit})")
+        plt.ylabel("Flux")
         plt.show()
 
     return True
