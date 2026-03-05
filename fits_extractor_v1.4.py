@@ -11,24 +11,16 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from astropy.io import fits
-from astropy import units as u
 import numpy as np
 import os
+from scipy.ndimage import median_filter
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 import string
 import random
-import math
-from specutils import Spectrum
-from specutils.manipulation import FluxConservingResampler
-import pandas as pd
-import time
-import plotly.express as px
-import plotly.graph_objects as go
 
-
-version = "1.3"
+version = "1.4"
 
 obj_key = 'OBJECT'
 wv_unit_key = 'TUNIT1'
@@ -48,7 +40,7 @@ class FileSizeApp(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"FITS Extractor {version}")
-        self.geometry("800x600")
+        self.geometry("590x300")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
         self.all_loaded_files = []
         self.drop_disabled = False
@@ -156,34 +148,6 @@ class FileSizeApp(TkinterDnD.Tk):
 
         self.progress_bar = ttk.Progressbar(self.extraction_frame)
         self.progress_bar.pack(side="right")
-        
-        # stacking button
-        self.stacking_frame = ttk.Frame(self.left_frame)
-        self.stacking_frame.pack(pady=5)
-        
-        self.do_individual_plot = tk.BooleanVar(value=False)
-        self.do_individual_plot_checkbox = ttk.Checkbutton(
-            self.stacking_frame,
-            text="Save individual spectra",
-            variable=self.do_individual_plot
-            )
-        self.do_individual_plot_checkbox.pack(side="left", padx=5)
-        
-        self.stacking = ttk.Button(self.stacking_frame, text="Stack spectra", command=self.do_stacking)
-        self.stacking.pack(side="right", padx=(0, 5))
-        
-        self.isESO = tk.BooleanVar(value=False)
-        self.isESO_checkbox = ttk.Checkbutton(
-            self.stacking_frame,
-            text="ESO files",
-            variable=self.isESO
-            )
-        self.isESO_checkbox.pack(side="left")
-        
-        """
-        self.stacking_progress_bar = ttk.Progressbar(self.stacking_frame)
-        self.stacking_progress_bar.pack(side="right")
-        """ # can not be done because iteration is needed and the function for stacking itself itereates -> can not update progressbar
 
     def get_size(self, path, no=0):
         """Berechnet die Größe einer Datei oder eines Ordners (in Bytes)."""
@@ -240,7 +204,6 @@ class FileSizeApp(TkinterDnD.Tk):
         self.key_values[2] = self.cb_flux_err.get()
         self.key_values[3] = self.cb_cont.get()
         self.key_values[4] = self.cb_status.get()
-        #print(self.key_values)
         return self.key_values
 
     def check_bintable_keys(self):
@@ -298,27 +261,7 @@ class FileSizeApp(TkinterDnD.Tk):
                     break
 
         tk.messagebox.showinfo(title="List of Loaded Files", message=msg)
-    
-    def do_stacking(self):
-        if not self.all_loaded_files:
-            messagebox.showerror("Error", "No files loaded.")
-            return
-        
-        self.progress_bar.config(maximum=len(self.all_loaded_files))
-        
-        try:
-            save_path = stacking(
-                self.all_loaded_files,
-                specUnit="AA",
-                fluxUnit="erg cm-2 s-1 AA-1",
-                binfactor=1,
-                z=0,
-                single_plotting=self.do_individual_plot.get()
-            )
-            messagebox.showinfo("Done", f"Data is saved at location: {save_path}.")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-        
+
     def progress_bar_step(self):
         self.progress_bar.step()
         self.update_idletasks()
@@ -373,33 +316,6 @@ class FileSizeApp(TkinterDnD.Tk):
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
-def normalize_cont(flux_values, flux_err_values, cont_values):
-    """
-    How this works: Divide flux value by respective continuum value to normalize to continuum.
-    Flux errors are propagated.
-    """
-    try:
-        cont_err_values = 0 # No continuum error given
-
-        flx_len = len(flux_values)
-        cnt_len = len(cont_values)
-
-        flux_norm = []
-        err_norm = []
-        if flx_len == cnt_len:
-            for i in range(flx_len):
-                if flux_values[i]*cont_values[i] < 0:
-                    return flux_values, flux_err_values, 2 # cont & flux differ in sign
-                flux_norm.append(flux_values[i]/cont_values[i])
-                err_norm.append(np.sqrt((flux_err_values[i] / cont_values[i])**2 + (flux_values[i] * cont_err_values / cont_values[i]**2)**2))
-        else:
-            return flux_values, flux_err_values, 3 # cont & flux differ in length
-
-        return flux_norm, err_norm, 0
-    except Exception as e:
-        print(f"Unknown error: {e}")
-        return flux_values, flux_err_values, 1
-
 def normalize_max(flux_values, flux_err_values):
     """
     How this works: Generate a maximum flux value as median from a small window around the actual flux maximum.
@@ -426,6 +342,7 @@ def normalize_max(flux_values, flux_err_values):
         print(f"Unknown error: {e}")
         return flux_values, flux_err_values, 1
 
+# Currently not in use.
 def subtract_continuum(flux, cont):
     flx_len = len(flux)
     cnt_len = len(cont)
@@ -439,6 +356,7 @@ def subtract_continuum(flux, cont):
 
     return np.array(flux_sub)
 
+# Currently not in use.
 def savgol_smooth(flux, window=51, poly=3, err=None):
     """
     Use Savitzky-Golay filtering to smooth spectrum. 
@@ -474,6 +392,116 @@ def savgol_smooth(flux, window=51, poly=3, err=None):
     else:
         smooth_err = savgol_filter(err, window_length=window, polyorder=poly)
         return smooth_flux, smooth_err
+     
+def estimate_continuum_sg(wave, flux, window_length=401, polyorder=3, med_width=201, peak_sigma=5.0, mask_width_pix=50, iter_clip=True, niter=2):
+    """
+    Estimate the spectral continuum using an iterative masked Savitzky-Golay filtering
+    approach. Strong spectral lines are identified via robust sigma clipping, masked,
+    interpolated over, and the continuum is then estimated from the smoothed spectrum.
+
+    Parameters
+    ----------
+    wave : array-like
+        Wavelength values of the spectrum.
+    flux : array-like
+        Flux values corresponding to `wave`.
+    window_length : int, optional
+        Savitzky-Golay smoothing window size (must be odd). Default is 401.
+    polyorder : int, optional
+        Polynomial order for the Savitzky-Golay filter. Default is 3.
+    med_width : int, optional
+        Window size of the median filter used for initial peak detection.
+        Default is 201.
+    peak_sigma : float, optional
+        Sigma threshold above the median-filtered background for identifying
+        significant peaks to mask. Default is 5.0.
+    mask_width_pix : int, optional
+        Half-width of the region to mask around every detected peak (in pixels).
+        Default is 50.
+    iter_clip : bool, optional
+        If True, iteratively re-detect and expand masks using the updated continuum
+        estimate. Default is True.
+    niter : int, optional
+        Maximum number of sigma-clipping iterations. Only relevant if 'iter_clip'
+        is True. Default is 2.
+
+    Returns
+    -------
+    continuum : ndarray
+        The estimated continuum across the wavelength grid.
+    flux_contsub : ndarray
+        Flux values with the estimated continuum subtracted ('flux - continuum').
+    mask : ndarray of bool
+        Boolean mask array; True indicates masked (peak) data points.
+    parameters : list
+        List of the parameters used for the continuum estimation in the order:
+        [window_length, polyorder, med_width, peak_sigma, mask_width_pix, niter]
+
+    Notes
+    -----
+    The algorithm proceeds as follows:
+    1. A median filter provides a coarse background estimate.
+    2. Residuals are compared against a robust sigma threshold (MAD-based).
+    3. Identified peaks are masked, including ±'mask_width_pix' around each peak.
+    4. The spectrum is linearly interpolated over the masked regions.
+    5. A Savitzky-Golay filter estimates the continuum from the interpolated data.
+    6. If `iter_clip` is enabled, steps 3-5 are repeated up to 'niter' times.
+
+    This method is effective for spectra containing narrow absorption/emission
+    features superimposed on a slowly varying continuum.
+    """
+    if window_length % 2 == 0:
+        window_length += 1
+    x = np.asarray(wave, dtype=float)
+    y = np.asarray(flux, dtype=float)
+    # 1. A median filter provides a coarse background estimate.
+    y_med = median_filter(y, size=med_width, mode='nearest')
+
+    # 2. Residuals are compared against a robust sigma threshold (MAD-based).
+    resid = y - y_med
+    mad = np.median(np.abs(resid - np.median(resid)))
+    if mad == 0:
+        mad = np.std(resid) + 1e-12
+
+    #3. Identified peaks are masked, including ±'mask_width_pix' around each peak.
+    threshold = np.median(resid) + peak_sigma * 1.4826 * mad
+    peaks = resid > threshold
+
+    # grow mask around peaks
+    mask = np.zeros_like(y, dtype=bool)
+    idxs = np.where(peaks)[0]
+    for i in idxs:
+        lo = max(0, i - mask_width_pix)
+        hi = min(len(y), i + mask_width_pix + 1)
+        mask[lo:hi] = True
+
+    # optional iterative widening (to catch lines moving after subtract)
+    for it in range(niter if iter_clip else 1):
+        # 4. The spectrum is linearly interpolated over the masked regions.
+        xi = x[~mask]
+        yi = y[~mask]
+        # If too few points, break
+        if yi.size < max(10, polyorder+2):
+            # fallback: apply SG to original (best-effort)
+            cont = savgol_filter(y, window_length, polyorder)
+            return cont, y - cont, mask
+        interp = np.interp(x, xi, yi)
+        # 5. A Savitzky-Golay filter estimates the continuum from the interpolated data.
+        cont = savgol_filter(interp, window_length, polyorder)
+        # 6. If `iter_clip` is enabled, steps 3-5 are repeated up to 'niter' times.
+        resid2 = y - cont
+        mad2 = np.median(np.abs(resid2 - np.median(resid2)))
+        threshold2 = np.median(resid2) + peak_sigma * 1.4826 * (mad2 if mad2>0 else 1e-12)
+        new_peaks = resid2 > threshold2
+        if not new_peaks.any() or not iter_clip:
+            break
+        idxs = np.where(new_peaks)[0]
+        for i in idxs:
+            lo = max(0, i - mask_width_pix)
+            hi = min(len(y), i + mask_width_pix + 1)
+            mask[lo:hi] = True
+
+    return cont, y - cont, mask, [window_length, polyorder, med_width, peak_sigma, mask_width_pix, niter]
 
 def check_file(file_path):
     print(f"Checking for compatibility: {file_path}", end = ' ')
@@ -600,33 +628,23 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         new_wv_delta = (new_wave[-1] - new_wave[0]) / (len(new_wave) - 1)
 
     if do_continuum_removal:
+        it_smooth_flux, cont_flux, _, params = estimate_continuum_sg(new_wave,new_flux,window_length=601, polyorder=3,med_width=401, peak_sigma=5.0,mask_width_pix=60, iter_clip=True, niter=3)
+        cont_err = new_err
+        # Deactivated until further notice
+        """
         smooth_flux, _ = savgol_smooth(new_flux,round(len(new_flux)/15),3,new_err)
         if do_cont_extract:
             cont_flux = subtract_continuum(new_flux, new_cont)
         else:
             cont_flux = subtract_continuum(new_flux, smooth_flux)
         cont_err = new_err
+        """
         print("--- Fitted and subtracted continuum.")
     else:
         cont_flux = new_flux
         cont_err = new_err
 
     if do_normalize:
-        # Continuum normalization deactivated until further notice
-        """
-        if do_cont_extract:
-            norm_flux, norm_err, norm_status = normalize_cont(cont_flux, cont_err, new_cont)
-            match norm_status:
-                case 0:
-                    print("--- Normalized flux values with respect to continuum.")
-                case 1:
-                    print("-!- Flux normalization cancelled (unknown error) [error code 1]")
-                case 2:
-                    print("-!- Flux normalization cancelled: Flux and Continuum differ in sign. [error code 2]")
-                case 3:
-                    print("-!- Flux normalization cancelled: Flux and Continuum differ in length. [error code 3]") 
-        else:
-        """
         norm_flux, norm_err, norm_status = normalize_max(cont_flux, cont_err)
         match norm_status:
             case 0:
@@ -654,6 +672,21 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     header['CDELT1'] = new_wv_delta
     header['CRDER1'] = std_delta
     header['CTYPE1'] = 'WAVELENGTH'
+    header['CONTSUB'] = do_continuum_removal
+    header.comments['CONTSUB'] = 'Iterative continuum subtraction'
+    if do_continuum_removal:
+        header['PWINLEN'] = params[0]
+        header.comments['PWINLEN'] = 'contsub window_length parameter'
+        header['PPOL_ORD'] = params[1]
+        header.comments['PPOL_ORD'] = 'contsub polyorder parameter'
+        header['PMEDWID'] = params[2]
+        header.comments['PMEDWID'] = 'contsub med_width parameter'
+        header['PPEAKSIG'] = params[3]
+        header.comments['PPEAKSIG'] = 'contsub peak_sigma parameter'
+        header['PMASKWID'] = params[4]
+        header.comments['PMASKWID'] = 'contsub mask_width_pix parameter'
+        header['PNITER'] = params[5]
+        header.comments['PNITER'] = 'contsub number of iterations'
 
     header_err = hdu_err.header
     header_err['OBJECT'] = obj_name
@@ -663,6 +696,21 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     header_err['CDELT1'] = new_wv_delta
     header_err['CRDER1'] = std_delta
     header_err['CTYPE1'] = 'WAVELENGTH'
+    header_err['CONTSUB'] = do_continuum_removal
+    header_err.comments['CONTSUB'] = 'Iterative continuum subtraction'
+    if do_continuum_removal:
+        header_err['PWINLEN'] = params[0]
+        header_err.comments['PWINLEN'] = 'contsub window_length parameter'
+        header_err['PPOL_ORD'] = params[1]
+        header_err.comments['PPOL_ORD'] = 'contsub polyorder parameter'
+        header_err['PMEDWID'] = params[2]
+        header_err.comments['PMEDWID'] = 'contsub med_width parameter'
+        header_err['PPEAKSIG'] = params[3]
+        header_err.comments['PPEAKSIG'] = 'contsub peak_sigma parameter'
+        header_err['PMASKWID'] = params[4]
+        header_err.comments['PMASKWID'] = 'contsub mask_width_pix parameter'
+        header_err['PNITER'] = params[5]
+        header_err.comments['PNITER'] = 'contsub number of iterations'
 
     print("--- Saved headers.")
 
@@ -681,13 +729,6 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         final_spec += "_cntrm"
         final_err += "_cntrm"
     if do_normalize:
-        # Deactivated until further notice
-        """
-        if do_cont_extract:
-            final_spec += f"_cnorm{norm_status}"
-            final_err += f"_cnorm{norm_status}"
-        else:
-        """
         final_spec += f"_norm{norm_status}"
         final_err += f"_norm{norm_status}"
 
@@ -715,258 +756,6 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         plt.show()
 
     return True
-
-def round_sig_down(x, n):
-    return round(x, n - int(math.floor(math.log10(abs(x)))) - 1)
-
-def round_sig_up(x, n):
-    return round(x, n - int(math.ceil(math.log10(abs(x)))) - 1)
-
-def save_mixed_plot(folder_path, save_name, data_list, spectrum_range, stacked_data):
-    
-    fig = go.Figure()
-    
-    filename_html = "interactive_stack.html"
-    
-    plot_folder = os.path.join(folder_path, save_name)
-    html_path = os.path.join(plot_folder, filename_html)
-    
-    for i, df in enumerate(data_list):
-        fig.add_trace(go.Scatter(
-            x=df["wavelength"],
-            y=df["flux"],
-            mode="lines",
-            name=f"{spectrum_range["start_value"][i]} to {spectrum_range["end_value"][i]}Spectrum {i+1}"
-        ))
-        
-    fig.add_trace(go.Scatter(
-        x=stacked_data["wavelength"],
-        y=stacked_data["flux"],
-        mode="lines",
-        name="Stacked spectrum"
-        ))
-    
-    fig.update_layout(
-        title="Interaktives Stacking / Overlay",
-        xaxis_title="Wavelength [Å]",
-        yaxis_title="Flux",
-        hovermode="x unified"
-    )
-    
-    fig.write_html(html_path)
-    print(f"Interactive mixed spectra is exported to {html_path}.")
-    
-    return plot_folder
-    
-
-def save_plot(folder_path, save_name, base_name, id, data, file_type="png"):
-    
-    # Zielordner erstellen
-    plot_folder = os.path.join(folder_path, save_name)
-    os.makedirs(plot_folder, exist_ok=True)
-    
-    # Dateinamen bauen
-    if id == "stacked":
-        filename_png = "stacked.png"
-        filename_html = "stacked.html"
-    else:
-        filename_png = f"{base_name}_{id}.png"
-        filename_html = f"{base_name}_{id}.html"
-    
-    png_path = os.path.join(plot_folder, filename_png)
-    html_path = os.path.join(plot_folder, filename_html)
-    
-    # Plot speichern
-    try:
-        plt.figure(figsize=(20, 7))
-        plt.plot(data["wavelength"], data["flux"], linewidth=1)
-        plt.xlabel("Wavelength")
-        plt.ylabel("Flux")
-        plt.tight_layout()
-        plt.savefig(png_path, dpi=300)
-        plt.close()
-    except:
-        raise Exception("err: inserted data has no wavelength and flux columns!")
-        
-    
-    try:
-        fig = px.line(data, x="wavelength", y="flux", title=filename_html)
-        fig.write_html(html_path)
-    except:
-        raise Exception("err: inserted data has no wavelength and flux columns!")
-
-    
-    return png_path, html_path
-
-def wavelength_values(file_path):
-    
-    step_lengths = []
-    start_values = []
-    end_values = []
-    
-    for data in file_path:
-        
-        with fits.open(data) as f:
-            specdata = f[0].data
-            crval1 = f[0].header['CRVAL1']
-            cdelt1 = f[0].header['CDELT1']
-            entries = len(specdata)
-        
-        step_lengths.append(cdelt1)
-        start_values.append(crval1)
-        
-        end_wavelength = crval1 + cdelt1 * entries
-        end_values.append(end_wavelength)
-        
-    max_step = max(step_lengths)
-    min_length = min(start_values)
-    max_length = max(end_values)
-    
-    spectrum_range = pd.DataFrame({
-        "start_value": start_values,
-        "end_value": end_values
-        })
-    
-    for i in range(len(spectrum_range)):
-        spectrum_range.loc[i, "start_value"] = round_sig_down(spectrum_range["start_value"][i], 4)
-        
-    for i in range(len(spectrum_range)):
-        spectrum_range.loc[i, "end_value"] = round_sig_up(spectrum_range["end_value"][i], 4)
-    
-    return max_step, min_length, max_length, spectrum_range
-
-
-
-def stacking(file_path, specUnit, fluxUnit, binfactor, z=1, statistic="mean", single_plotting=False, save_name=False): #", min_Res = 10000" if you want/can check the resolution
-    
-    if not save_name:
-        save_name = time.strftime("%Y%m%d-%H%M%S")
-    
-    fluxcon = FluxConservingResampler()
-    folder_path = os.getcwd()
-
-    data_df = []
-    id_counter = 1
-    temp_data = []
-    mixed_spec_list = []
-
-    spec_unit = u.Unit(specUnit)
-    flux_unit = u.Unit(fluxUnit)
-
-    for data in file_path:
-        
-        print(f"File {id_counter} is being processed!")
-        
-        fits_name = os.path.basename(data).replace(".fits", "")
-        
-        with fits.open(data) as f:
-            specdata = f[0].data
-            crval1 = f[0].header['CRVAL1']
-            cdelt1 = f[0].header['CDELT1']
-            
-            # spaltweite
-            
-            
-            entries = len(specdata)
-
-        # Calculate resolution 
-        """ 
-        slitwidth = 
-        Res = crval1 / slitwidth
-        if Res < min_Res:
-            print(f"The resolution of spectrum {os.path} is too small! It will not be used in the stack!")
-            pass """
-        
-        
-        
-        # Wavelength array
-        wavelength = (crval1 + np.arange(entries) * cdelt1) / (1 + z)
-        wavelength *= spec_unit
-
-        # Flux (byteswap fix)
-        flux = np.array(specdata)
-        flux = flux.byteswap().view(flux.dtype.newbyteorder("="))
-        flux *= flux_unit
-
-        # Remove zeros and NaN
-        mask = (~np.isnan(flux)) & (flux != 0)
-        wavelength = wavelength[mask]
-        flux = flux[mask]
-        
-
-        if single_plotting:
-            
-            temp_data = pd.DataFrame({
-                        "wavelength": wavelength.value,
-                        "flux": flux.value
-                        })
-            
-            png_path, html_path = save_plot(folder_path, save_name, fits_name, id_counter, temp_data)
-            
-            print(f"PNG Figure saved under path: {png_path}")
-            print(f"HTML Figure saved under path: {html_path}")
-
-
-        # Create Spectrum1D
-        input_spec = Spectrum(
-            spectral_axis=wavelength,
-            flux=flux
-        )
-
-        # New dispersion grid
-        
-        step_length, min_length, max_length, spectrum_range = wavelength_values(file_path)
-        
-        # Step width: round to 1 significant figure
-        step_width = round_sig_down(step_length, 1) * binfactor
-        
-        wave_start = round_sig_down(min_length, 2)
-        wave_stop = round_sig_up(max_length, 2)
-
-        new_disp_grid = np.arange(wave_start,
-                                  wave_stop,
-                                  step_width) * spec_unit
-
-        # Resample
-        new_spec = fluxcon(input_spec, new_disp_grid)
-
-        # Store resampled data as floats
-        df = pd.DataFrame({
-            "wavelength": new_spec.spectral_axis.value,
-            "flux": new_spec.flux.value
-        })
-
-        data_df.append(df)
-        mixed_spec_list.append(df)
-        
-        id_counter += 1
-
-    # Combine all spectra
-    combined = pd.concat(data_df, ignore_index=True)
-
-    # Sort by wavelength
-    combined.sort_values("wavelength", inplace=True)
-
-    # Stack (mean per wavelength)
-    if statistic == "mean":
-        stacked = combined.groupby("wavelength").mean().reset_index()
-    elif statistic == "median":
-        stacked = combined.groupby("wavelength").median().reset_index()
-        
-    stacked_save = save_plot(folder_path, save_name, "stacked", "stacked", stacked)
-    
-    save_folder = save_mixed_plot(folder_path, save_name, mixed_spec_list, spectrum_range, stacked)
-    
-    print(f"Max steplength from all spectra is: {step_length}")
-    print(f"Stacked image saved under path: {stacked_save}")
-    
-
-    # Convert back to quantities
-    stacked["wavelength"] *= spec_unit
-    stacked["flux"] *= flux_unit
-    
-
-    return save_folder
 
 # Main
 if __name__ == "__main__":

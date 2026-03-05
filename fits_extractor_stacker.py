@@ -28,7 +28,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-version = "1.3"
+version = "1.5.S [Experimental Version]"
 
 obj_key = 'OBJECT'
 wv_unit_key = 'TUNIT1'
@@ -48,7 +48,7 @@ class FileSizeApp(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"FITS Extractor {version}")
-        self.geometry("800x600")
+        self.geometry("590x340")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
         self.all_loaded_files = []
         self.drop_disabled = False
@@ -736,7 +736,7 @@ def save_mixed_plot(folder_path, save_name, data_list, spectrum_range, stacked_d
             x=df["wavelength"],
             y=df["flux"],
             mode="lines",
-            name=f"{spectrum_range["start_value"][i]} to {spectrum_range["end_value"][i]}Spectrum {i+1}"
+            name=f"{spectrum_range['start_value'][i]} to {spectrum_range['end_value'][i]}Spectrum {i+1}"
         ))
         
     fig.add_trace(go.Scatter(
