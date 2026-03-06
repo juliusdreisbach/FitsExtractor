@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 def run_fits_extractor_old():
-    subprocess.Popen([sys.executable, "fits_extractor_v1.4.py"])
+    subprocess.Popen([sys.executable, "fits_extractor_stable.py"])
 
 def run_fits_extractor_stacker_combi():
     subprocess.Popen([sys.executable, "fits_extractor_stacker.py"])
@@ -28,13 +28,13 @@ right_frame.pack(side="right", padx=5, pady=5)
 
 ttk.Label(top_frame, text="FITS Extractor currently supports two different versions.\nPlease choose which version you want to use.", font=("Arial", 9)).pack(pady=5,fill='both', expand=True)
 
-ttk.Label(left_frame, text="STABLE VERSION v1.4", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
-ttk.Label(left_frame, text="This version is identical to the\npreviously released v1.4. The\ndocumentation can be found\non the GitHub page.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
-button_old = tk.Button(left_frame, text="Run FITS Extractor 1.4", command=run_fits_extractor_old)
+ttk.Label(left_frame, text="STABLE VERSION v1.4.1", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
+ttk.Label(left_frame, text="This version is a stable release.\nThe documentation can be found\non the GitHub page.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
+button_old = tk.Button(left_frame, text="Run FITS Extractor 1.4.1", command=run_fits_extractor_old)
 button_old.pack(padx=20, pady=10)
 
 ttk.Label(right_frame, text="EXPERIMENTAL VERSION v1.5.S", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
-ttk.Label(right_frame, text="This version includes a stacking operation\nfor stacking already extracted spectra.\nThis feature is experimental and might\nlead to unexpected results or crashes.\nFor now, no documentation can be provided.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
+ttk.Label(right_frame, text="This version is based on the previously\nreleased v1.4, but includes a stacking\noperation for stacking already extracted\nspectra. This feature is experimental and\nmight lead to unexpected results or crashes.\nFor now, no documentation can be provided.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
 button_combi = tk.Button(right_frame, text="Run FITS Extractor 1.5.S (Experimental)", command=run_fits_extractor_stacker_combi)
 button_combi.pack(padx=20, pady=10)
 
