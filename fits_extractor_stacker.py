@@ -1,5 +1,5 @@
 """
-© 2025 Julius Richard Dreisbach – FITS Extractor Utility
+© 2026 Julius Richard Dreisbach – FITS Extractor Utility
 Designed for rapid spectrum extraction and normalization.
 
 You may use, copy, and modify this software for personal or educational purposes.
@@ -14,8 +14,6 @@ from astropy.io import fits
 from astropy import units as u
 import numpy as np
 import os
-from scipy.interpolate import interp1d
-from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 import string
 import random
@@ -28,7 +26,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-version = "1.5.S [Experimental Version]"
+version = "Stacker 1.0"
 
 obj_key = 'OBJECT'
 wv_unit_key = 'TUNIT1'
@@ -48,7 +46,7 @@ class FileSizeApp(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"FITS Extractor {version}")
-        self.geometry("590x340")
+        self.geometry("350x250")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
         self.all_loaded_files = []
         self.drop_disabled = False
@@ -60,10 +58,7 @@ class FileSizeApp(TkinterDnD.Tk):
         self.left_frame = ttk.Frame(self)
         self.left_frame.pack(side="left", padx=10, pady=10)
 
-        self.right_frame = ttk.Frame(self)
-        self.right_frame.pack(side="right", padx=10, pady=10)
-
-        ttk.Label(self.left_frame, text="How To Use: (1) Provide a file or directory (2) Load key values\n(3) Select the correct key values (4) Extract .fits spectra", font=("Arial", 9)).pack(pady=5)
+        ttk.Label(self.left_frame, text="How To Use: (1) Provide a file directory (2) Stack spectra", font=("Arial", 9)).pack(pady=5)
 
         self.drop_frame = ttk.Frame(self.left_frame, width=400, height=100, relief="solid", borderwidth=1)
         self.drop_frame.pack(pady=5)
@@ -94,68 +89,6 @@ class FileSizeApp(TkinterDnD.Tk):
         # show all files button
         self.show_all_files_button = ttk.Button(self.file_frame, text="Show Files", command=self.show_all_files)
         self.show_all_files_button.pack(side="right")
-
-        # Comboboxes for bintable columns
-        self.check_bintable_button = ttk.Button(self.right_frame, text="Load Key Values", state=tk.DISABLED, command=self.check_bintable_keys)
-        self.check_bintable_button.pack(pady=5)
-
-        self.cb_wave = ttk.Combobox(self.right_frame,state=tk.DISABLED)
-        self.cb_wave.set("Select wavelength key...")
-        self.cb_wave.pack(pady=5)
-
-        self.cb_flux = ttk.Combobox(self.right_frame,state=tk.DISABLED)
-        self.cb_flux.set("Select flux key...")
-        self.cb_flux.pack(pady=5)
-
-        self.cb_flux_err = ttk.Combobox(self.right_frame,state=tk.DISABLED)
-        self.cb_flux_err.set("Select flux error key...")
-        self.cb_flux_err.pack(pady=5)
-
-        self.cb_cont = ttk.Combobox(self.right_frame,state=tk.DISABLED)
-        self.cb_cont.set("Select continuum key...")
-        self.cb_cont.pack(pady=5)
-
-        self.use_continuum_key = tk.BooleanVar(value=False)
-        self.use_continuum_checkbox = ttk.Checkbutton(self.right_frame, text="Use Continuum Key", variable=self.use_continuum_key, state=tk.DISABLED, command=self.toggle_combobox_activation)
-        self.use_continuum_checkbox.pack(pady=5)
-
-        self.cb_status = ttk.Combobox(self.right_frame,state=tk.DISABLED)
-        self.cb_status.set("Select status key...")
-        self.cb_status.pack(pady=5)
-
-        self.use_status_key = tk.BooleanVar(value=False)
-        self.use_status_checkbox = ttk.Checkbutton(self.right_frame, text="Use Status Key", variable=self.use_status_key, state=tk.DISABLED, command=self.toggle_combobox_activation)
-        self.use_status_checkbox.pack(pady=5)
-
-        self.options_frame = ttk.Frame(self.left_frame)
-        self.options_frame.pack(pady=5)
-
-        self.do_interpolate = tk.BooleanVar(value=True)
-        self.do_interpolate_checkbox = ttk.Checkbutton(self.options_frame, text="Interpolate Values", variable=self.do_interpolate)
-        self.do_interpolate_checkbox.pack(side="left", padx=(0, 5))
-
-        self.do_cont_subtraction = tk.BooleanVar(value=True)
-        self.do_cont_subtraction_checkbox = ttk.Checkbutton(self.options_frame, text="Subtract Continuum", variable=self.do_cont_subtraction)
-        self.do_cont_subtraction_checkbox.pack(side="left", padx=(0, 5))
-
-        self.do_normalize = tk.BooleanVar(value=False)
-        self.do_normalize_checkbox = ttk.Checkbutton(self.options_frame, text="Perform Normalization", variable=self.do_normalize)
-        self.do_normalize_checkbox.pack(side="left", padx=(0, 5))
-
-        # GUI frame for spectra extraction
-        self.extraction_frame = ttk.Frame(self.left_frame)
-        self.extraction_frame.pack(pady=5)
-
-        self.do_plot = tk.BooleanVar(value=False)
-        self.show_plot_checkbox = ttk.Checkbutton(self.extraction_frame, text="Plot Extracted Spectra", variable=self.do_plot)
-        self.show_plot_checkbox.pack(side="left", padx=(0, 10))
-
-        # extraction button
-        self.extraction_button = ttk.Button(self.extraction_frame, text="Extract .fits Spectra", state=tk.DISABLED, command=self.extract_spectra)
-        self.extraction_button.pack(side="left", padx=(0, 10))
-
-        self.progress_bar = ttk.Progressbar(self.extraction_frame)
-        self.progress_bar.pack(side="right")
         
         # stacking button
         self.stacking_frame = ttk.Frame(self.left_frame)
@@ -172,6 +105,8 @@ class FileSizeApp(TkinterDnD.Tk):
         self.stacking = ttk.Button(self.stacking_frame, text="Stack spectra", command=self.do_stacking)
         self.stacking.pack(side="right", padx=(0, 5))
         
+        # No functionality?
+        """ 
         self.isESO = tk.BooleanVar(value=False)
         self.isESO_checkbox = ttk.Checkbutton(
             self.stacking_frame,
@@ -179,7 +114,7 @@ class FileSizeApp(TkinterDnD.Tk):
             variable=self.isESO
             )
         self.isESO_checkbox.pack(side="left")
-        
+        """
         """
         self.stacking_progress_bar = ttk.Progressbar(self.stacking_frame)
         self.stacking_progress_bar.pack(side="right")
@@ -232,58 +167,6 @@ class FileSizeApp(TkinterDnD.Tk):
             self.result_label.config(text=f"Size: {size_gb:.2f} GB")
 
         self.file_label.config(text=f"Files loaded: {no_of_files}")
-        self.check_bintable_button.config(state=tk.NORMAL)
-
-    def cb_get_values(self):
-        self.key_values[0] = self.cb_wave.get()
-        self.key_values[1] = self.cb_flux.get()
-        self.key_values[2] = self.cb_flux_err.get()
-        self.key_values[3] = self.cb_cont.get()
-        self.key_values[4] = self.cb_status.get()
-        #print(self.key_values)
-        return self.key_values
-
-    def check_bintable_keys(self):
-        if self.all_loaded_files == []:
-            tk.messagebox.showwarning(title="Not possible", message="Cannot load key values, as no files are loaded.\n\nPlease provide a file or directory first.")
-            return
-        
-        self.extraction_button.config(state=tk.DISABLED)
-        self.check_bintable_button.config(state=tk.DISABLED)
-
-        self.possible_keys = []
-        for file in self.all_loaded_files:
-            self.update_idletasks()
-            keys = check_file(file)
-            if not keys == False:
-                for key in keys:
-                    if key not in self.possible_keys:
-                        self.possible_keys.append(key)
-
-        self.update_comboboxes(self.possible_keys)
-
-        self.extraction_button.config(state=tk.NORMAL)
-            
-    def update_comboboxes(self, keys):
-        self.cb_wave.config(values=keys,state='readonly')
-        self.cb_flux.config(values=keys,state='readonly')
-        self.cb_flux_err.config(values=keys,state='readonly')
-        self.cb_cont.config(values=keys)
-        self.cb_status.config(values=keys)
-        self.use_continuum_checkbox.config(state=tk.NORMAL)
-        self.use_status_checkbox.config(state=tk.NORMAL)
-        self.toggle_combobox_activation()
-
-    def toggle_combobox_activation(self):
-        if self.use_continuum_key.get():
-            self.cb_cont.config(state='readonly')
-        else:
-            self.cb_cont.config(state=tk.DISABLED)
-
-        if self.use_status_key.get():
-            self.cb_status.config(state='readonly')
-        else:
-            self.cb_status.config(state=tk.DISABLED)
 
     def show_all_files(self):
         msg = ""
@@ -304,7 +187,9 @@ class FileSizeApp(TkinterDnD.Tk):
             messagebox.showerror("Error", "No files loaded.")
             return
         
-        self.progress_bar.config(maximum=len(self.all_loaded_files))
+        if len(self.all_loaded_files) < 2:
+            messagebox.showerror("Error", "Stacking a single spectrum is not useful.")
+            return
         
         try:
             save_path = stacking(
@@ -318,162 +203,10 @@ class FileSizeApp(TkinterDnD.Tk):
             messagebox.showinfo("Done", f"Data is saved at location: {save_path}.")
         except Exception as e:
             messagebox.showerror("Error", str(e))
-        
-    def progress_bar_step(self):
-        self.progress_bar.step()
-        self.update_idletasks()
-
-        current_value = self.progress_bar['value']
-        maximum_value = self.progress_bar['maximum']
-
-        if current_value >= maximum_value:
-            pass
-            #self.on_closing(self)
-
-    def extract_spectra(self):
-        if self.all_loaded_files == []:
-            tk.messagebox.showwarning(title="Not possible", message="Cannot begin extraction, as no files are loaded.\n\nPlease provide a file or directory first.")
-            return
-
-        self.drop_disabled = True
-        self.drop_label.config(text="Drag & Drop disabled")
-        self.show_plot_checkbox.config(state=tk.DISABLED)
-        self.extraction_button.config(state=tk.DISABLED)
-        self.progress_bar.config(maximum=len(self.all_loaded_files))
-        #print(self.do_plot.get())
-        key_values = self.cb_get_values()
-
-        i = 1
-        extr = 0
-        skip = 0
-        for file in self.all_loaded_files:
-            #thread = threading.Thread(target=create_spectrum, args=(file, self.do_plot.get()), daemon=True).start()
-            print(f"--###-- {i}/{len(self.all_loaded_files)} --###--")
-            extr_status = create_spectrum(file, key_values, do_cont_extract=self.use_continuum_key.get(), do_status_extract=self.use_status_key.get(), do_interpolate=self.do_interpolate.get(), do_continuum_removal = self.do_cont_subtraction.get(), do_normalize=self.do_normalize.get(), show_plot=self.do_plot.get())
-            if extr_status:
-                extr += 1
-            else:
-                skip += 1
-            self.progress_bar_step()
-            i+=1
-
-        print(f"--###-- FINISHED --###--")
-        print(f"Attempted to extract spectra from {len(self.all_loaded_files)} files")
-        print(f"   - successful for {extr} files")
-        print(f"   - skipped {skip} files")
-        if skip > 0:
-            tk.messagebox.showinfo(title="Success", message="Successfully extracted spectra of the provided files.", detail=f"Please note that {skip} file(s) have been skipped in the process as they are incompatible for various reasons. See the console for more information on these files.")
-        else:
-            tk.messagebox.showinfo(title="Success", message="Successfully extracted spectra of the provided files.")
         self.on_closing()
 
     def on_closing(self):
         self.destroy()
-
-def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
-
-def normalize_cont(flux_values, flux_err_values, cont_values):
-    """
-    How this works: Divide flux value by respective continuum value to normalize to continuum.
-    Flux errors are propagated.
-    """
-    try:
-        cont_err_values = 0 # No continuum error given
-
-        flx_len = len(flux_values)
-        cnt_len = len(cont_values)
-
-        flux_norm = []
-        err_norm = []
-        if flx_len == cnt_len:
-            for i in range(flx_len):
-                if flux_values[i]*cont_values[i] < 0:
-                    return flux_values, flux_err_values, 2 # cont & flux differ in sign
-                flux_norm.append(flux_values[i]/cont_values[i])
-                err_norm.append(np.sqrt((flux_err_values[i] / cont_values[i])**2 + (flux_values[i] * cont_err_values / cont_values[i]**2)**2))
-        else:
-            return flux_values, flux_err_values, 3 # cont & flux differ in length
-
-        return flux_norm, err_norm, 0
-    except Exception as e:
-        print(f"Unknown error: {e}")
-        return flux_values, flux_err_values, 1
-
-def normalize_max(flux_values, flux_err_values):
-    """
-    How this works: Generate a maximum flux value as median from a small window around the actual flux maximum.
-    This prevents the maximum to be without any error value when normalized.
-    """
-    try:
-        imax = np.argmax(flux_values)
-        win = 5  # window half-width for maximum determination
-        i0, i1 = max(0, imax-win), min(len(flux_values), imax+win+1)
-        f_max = np.median(flux_values[i0:i1])
-
-        if f_max < 0:
-            return flux_values, flux_err_values, 2
-
-        err_noise = np.median(flux_err_values)
-        err_f_max = err_noise / np.sqrt(i1-i0)
-
-        # normalize flux and error values
-        flux_norm = flux_values / f_max
-        err_norm = np.sqrt((flux_err_values / f_max)**2 + (flux_values * err_f_max / f_max**2)**2)
-
-        return flux_norm, err_norm, 0
-    except Exception as e:
-        print(f"Unknown error: {e}")
-        return flux_values, flux_err_values, 1
-
-def subtract_continuum(flux, cont):
-    flx_len = len(flux)
-    cnt_len = len(cont)
-
-    flux_sub = []
-    if flx_len == cnt_len:
-        for i in range(flx_len):
-            flux_sub.append(flux[i]-cont[i])
-    else:
-        return False # cont & flux differ in length
-
-    return np.array(flux_sub)
-
-def savgol_smooth(flux, window=51, poly=3, err=None):
-    """
-    Use Savitzky-Golay filtering to smooth spectrum. 
-    
-    Parameters
-    ---------
-    flux : array
-        raw flux values
-    window : int, optional
-        smoothing window size (odd parity)
-    poly : int, optional
-        polynomial degree
-    err : array_like or None
-        optional flux error values
-    
-    Returns
-    --------
-    smooth_flux : ndarray
-        Smoothened flux values
-    smooth_err : ndarray or None
-        Smoothened flux error values (None if none given)
-    """
-    # Make window size odd if needed
-    if window % 2 == 0:
-        window += 1
-    if window <= poly:
-        window = poly + 3 - (poly % 2)  # Set minimum size
-    
-    smooth_flux = savgol_filter(flux, window_length=window, polyorder=poly)
-
-    if err is None:
-        return smooth_flux, None
-    else:
-        smooth_err = savgol_filter(err, window_length=window, polyorder=poly)
-        return smooth_flux, smooth_err
 
 def check_file(file_path):
     print(f"Checking for compatibility: {file_path}", end = ' ')
@@ -496,225 +229,6 @@ def check_file(file_path):
         print("err: File is not loading correctly!")
         return False
     print("successful.")
-
-    try:
-        head = hdul[0].header # Header
-        table_head = hdul[1].header # Table Header
-        table_columns = hdul[1].columns.names # BinTable Column names
-
-        return table_columns
-    except:
-        print("err: File throws error when extracting!")
-        return False
-
-def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_extract = False, do_interpolate = False, do_continuum_removal = False, do_normalize = False, show_plot = True):
-    print(f"Now extracting: {file_path}", end = ' ')
-
-    filename_full = os.path.basename(file_path)
-    filename_splits = filename_full.split(".")
-    try:
-        filename = filename_splits[len(filename_splits)-2]
-        ending = filename_splits[len(filename_splits)-1]
-    except:
-        filename = filename_full
-        ending = "not_given"
-
-    if not ending in ['fits','FITS']:
-        print("warn: File is not compatible!")
-        return False
-
-    try:
-        hdul = fits.open(file_path)
-    except:
-        print("err: File is not loading correctly!")
-        return False
-    print("successful.")
-
-    try:
-        head = hdul[0].header # Header
-        table_head = hdul[1].header # Table Header
-        table_data = hdul[1].data  # BinTable
-
-
-        obj_name = head[obj_key]
-        wv_unit = table_head[wv_unit_key]
-
-        # Extract data columns
-        wave = table_data[key_values[0]]
-        flux = table_data[key_values[1]]
-        err = table_data[key_values[2]]
-        if do_cont_extract:
-            cont = table_data[key_values[3]]
-
-        if do_status_extract:
-            status = table_data[key_values[4]]
-    except:
-        print("err: File throws error when extracting!")
-        return False
-
-    print("--- Extracted data.")
-
-    if do_status_extract:
-        # Filter by status int
-        filtered_flux = np.where(status == 1, flux, 0)
-        filtered_err = np.where(status == 1, err, 0)
-    else:
-        filtered_flux = flux
-        filtered_err = err
-
-    # Flatten arrays
-    wave_flat = wave[0].flatten()
-    flux_flat = filtered_flux[0].flatten()
-    err_flat = filtered_err[0].flatten()
-    if do_cont_extract:
-        cont_flat = cont[0].flatten()
-
-    print("--- Filtered data.")
-
-    delta_wave = np.diff(wave_flat)
-    mean_delta = np.mean(delta_wave)
-    std_delta = np.std(delta_wave)
-    rel_std = std_delta / mean_delta
-
-    #print(f"[INFO] mean_delta: {mean_delta} {wv_unit}; std_delta: {std_delta} {wv_unit}; rel_std: {rel_std*100} %")
-
-    if do_interpolate:
-        new_wave = np.linspace(wave_flat.min(), wave_flat.max(), len(wave_flat))
-        flux_interp = interp1d(wave_flat, flux_flat, kind='linear', fill_value='extrapolate')
-        err_interp = interp1d(wave_flat, err_flat, kind='linear', fill_value='extrapolate')
-        if do_cont_extract:
-            cont_interp = interp1d(wave_flat, cont_flat, kind='linear', fill_value='extrapolate')
-            new_cont = cont_interp(new_wave)
-        new_flux = flux_interp(new_wave)
-        new_err = err_interp(new_wave)
-        new_wv_delta = new_wave[1] - new_wave[0]
-        print("--- Interpolated wavelengths.")
-    else:
-        # Note that this is not exact, in order to be able to construct this data without binary tables the wavelength delta needs to be constant over the whole spectrum, essentially shifting 
-        # flux values to new wavelengths without correcting for error (do_interpolate does that). It is recommended to activate interpolation if the wavelength delta is not constant beforehand.
-        new_wave = wave_flat
-        new_flux = flux_flat
-        new_err = err_flat
-        if do_cont_extract:
-            new_cont = cont_flat
-        new_wv_delta = (new_wave[-1] - new_wave[0]) / (len(new_wave) - 1)
-
-    if do_continuum_removal:
-        smooth_flux, _ = savgol_smooth(new_flux,round(len(new_flux)/15),3,new_err)
-        if do_cont_extract:
-            cont_flux = subtract_continuum(new_flux, new_cont)
-        else:
-            cont_flux = subtract_continuum(new_flux, smooth_flux)
-        cont_err = new_err
-        print("--- Fitted and subtracted continuum.")
-    else:
-        cont_flux = new_flux
-        cont_err = new_err
-
-    if do_normalize:
-        # Continuum normalization deactivated until further notice
-        """
-        if do_cont_extract:
-            norm_flux, norm_err, norm_status = normalize_cont(cont_flux, cont_err, new_cont)
-            match norm_status:
-                case 0:
-                    print("--- Normalized flux values with respect to continuum.")
-                case 1:
-                    print("-!- Flux normalization cancelled (unknown error) [error code 1]")
-                case 2:
-                    print("-!- Flux normalization cancelled: Flux and Continuum differ in sign. [error code 2]")
-                case 3:
-                    print("-!- Flux normalization cancelled: Flux and Continuum differ in length. [error code 3]") 
-        else:
-        """
-        norm_flux, norm_err, norm_status = normalize_max(cont_flux, cont_err)
-        match norm_status:
-            case 0:
-                print("--- Normalized flux values with respect to maximum flux.")
-            case 1:
-                print("-!- Flux normalization cancelled (unknown error) [error code 1]")
-            case 2:
-                print("-!- Flux normalization cancelled: Flux is negative. [error code 2]") 
-    else:
-        norm_flux = cont_flux
-        norm_err = cont_err
-
-    # Create 1D flux / errors
-    hdu = fits.PrimaryHDU(data=norm_flux)
-    hdu_err = fits.PrimaryHDU(data=norm_err)
-
-    print("--- Created new HDUs.")
-
-    # Save header data
-    header = hdu.header
-    header['OBJECT'] = obj_name
-    header['CUNIT1'] = wv_unit
-    header['CRPIX1'] = 1
-    header['CRVAL1'] = new_wave[0]
-    header['CDELT1'] = new_wv_delta
-    header['CRDER1'] = std_delta
-    header['CTYPE1'] = 'WAVELENGTH'
-
-    header_err = hdu_err.header
-    header_err['OBJECT'] = obj_name
-    header_err['CUNIT1'] = wv_unit
-    header_err['CRPIX1'] = 1
-    header_err['CRVAL1'] = new_wave[0]
-    header_err['CDELT1'] = new_wv_delta
-    header_err['CRDER1'] = std_delta
-    header_err['CTYPE1'] = 'WAVELENGTH'
-
-    print("--- Saved headers.")
-
-    id = id_generator(5, "abcdefghik123456")
-
-    final_spec = ""
-    final_err = ""
-
-    if do_interpolate:
-        final_spec += "_interp"
-        final_err += "_interp"
-    if do_status_extract:
-        final_spec += "_stat"
-        final_err += "_stat"
-    if do_continuum_removal:
-        final_spec += "_cntrm"
-        final_err += "_cntrm"
-    if do_normalize:
-        # Deactivated until further notice
-        """
-        if do_cont_extract:
-            final_spec += f"_cnorm{norm_status}"
-            final_err += f"_cnorm{norm_status}"
-        else:
-        """
-        final_spec += f"_norm{norm_status}"
-        final_err += f"_norm{norm_status}"
-
-    final_spec += "_spec.fits"
-    final_err += "_err.fits"
-
-    new_filename = folder_name + "/" + filename + "_" + obj_name + "_" + id + final_spec
-    new_filename_err = folder_name + "/" + filename + "_" + obj_name + "_" + id + final_err
-
-    if not os.path.isdir(folder_name):
-        os.mkdir(folder_name)
-
-    hdu.writeto(new_filename, overwrite=True)
-    hdu_err.writeto(new_filename_err, overwrite=True)
-
-    print(f"--- Files {new_filename}, {new_filename_err} created (Generated ID: {id}).")
-
-    if show_plot:
-        plt.figure(figsize=(8,5))
-        plt.errorbar(new_wave, norm_flux, yerr=norm_err, fmt='none', ecolor='#33FF33')
-        plt.plot(new_wave, norm_flux, 'b')
-        plt.title("Data Plot")
-        plt.xlabel(f"Wavelength ({wv_unit})")
-        plt.ylabel("Flux")
-        plt.show()
-
-    return True
 
 def round_sig_down(x, n):
     return round(x, n - int(math.floor(math.log10(abs(x)))) - 1)
@@ -856,6 +370,7 @@ def stacking(file_path, specUnit, fluxUnit, binfactor, z=1, statistic="mean", si
     for data in file_path:
         
         print(f"File {id_counter} is being processed!")
+        check_file(data)
         
         fits_name = os.path.basename(data).replace(".fits", "")
         
@@ -960,13 +475,40 @@ def stacking(file_path, specUnit, fluxUnit, binfactor, z=1, statistic="mean", si
     print(f"Max steplength from all spectra is: {step_length}")
     print(f"Stacked image saved under path: {stacked_save}")
     
-
     # Convert back to quantities
-    stacked["wavelength"] *= spec_unit
-    stacked["flux"] *= flux_unit
-    
+    stacked["wavelength"] = stacked["wavelength"] * spec_unit
+    stacked["flux"] = stacked["flux"] * flux_unit
 
+    save_as_fits(folder_path, save_name, stacked["flux"],stacked["wavelength"][1]-stacked["wavelength"][0],stacked["wavelength"][0])
+    
     return save_folder
+
+def save_as_fits(folder_path, save_name, flux, delta, first_wv):
+    plot_folder = os.path.join(folder_path, save_name)
+    os.makedirs(plot_folder, exist_ok=True)
+
+    file_path = os.path.join(plot_folder, "stacked.fits")
+
+    # Create 1D flux / errors
+    hdu = fits.PrimaryHDU(data=flux)
+
+    print("--- Created new HDUs.")
+
+    # Save header data
+    header = hdu.header
+    header['OBJECT'] = 'stacked'
+    header['CUNIT1'] = 'log'
+    header['CRPIX1'] = 1
+    header['CRVAL1'] = first_wv
+    header['CDELT1'] = delta
+    header['CRDER1'] = 0
+    header['CTYPE1'] = 'WAVELENGTH'
+
+    print("--- Saved headers.")
+
+    hdu.writeto(file_path, overwrite=True)
+
+    print(f"--- File {file_path} saved.")
 
 # Main
 if __name__ == "__main__":
