@@ -10,18 +10,19 @@ No warranty is provided.
 import tkinter as tk
 from tkinter import *
 from tkinter import ttk
-import subprocess
-import sys
+from tkinterdnd2 import TkinterDnD
+import fits_extractor_base as feb
+import fits_extractor_stacker as fes
 
 def run_fits_extractor():
     print("running FITS Extractor ...")
-    subprocess.Popen([sys.executable, "fits_extractor_base.py"])
+    feb.main()
 
 def run_fits_extractor_stacker():
     print("running FITS Extractor Stacker ...")
-    subprocess.Popen([sys.executable, "fits_extractor_stacker.py"])
+    fes.main()
 
-root = tk.Tk()
+root = TkinterDnD.Tk()
 root.title("Choose your FITS Extractor application")
 root.geometry("620x200")
 

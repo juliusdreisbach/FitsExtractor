@@ -9,7 +9,7 @@ No warranty is provided.
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
+from tkinterdnd2 import DND_FILES, TkinterDnD, DND_TEXT
 from astropy.io import fits
 from astropy import units as u
 import numpy as np
@@ -41,10 +41,11 @@ show_maximum_files = 25
 # Set a folder to save the files into.
 folder_name = "extracted"
 
-class FileSizeApp(TkinterDnD.Tk):
+class FileSizeApp(tk.Toplevel):
 
     def __init__(self):
         super().__init__()
+        self.TkdndVersion = TkinterDnD._require(self)
         self.title(f"FITS Extractor {version}")
         self.geometry("350x250")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
@@ -511,7 +512,10 @@ def save_as_fits(folder_path, save_name, flux, delta, first_wv):
     print(f"--- File {file_path} saved.")
 
 # Main
-if __name__ == "__main__":
-
+def main():
     app = FileSizeApp()
-    app.mainloop()      
+    #app.mainloop()
+
+# Main
+if __name__ == "__main__":
+    main() 

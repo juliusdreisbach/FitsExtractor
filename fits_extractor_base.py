@@ -10,7 +10,7 @@ No warranty is provided.
 import tkinter as tk
 from tkinter import *
 from tkinter import ttk, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
+from tkinterdnd2 import DND_FILES, TkinterDnD, DND_TEXT
 from astropy.io import fits
 import numpy as np
 import os
@@ -37,10 +37,11 @@ show_maximum_files = 25
 # Set a folder to save the files into.
 folder_name = "extracted_" + time.strftime("%Y%m%d-%H%M%S")
 
-class FileSizeApp(TkinterDnD.Tk):
+class FileSizeApp(tk.Toplevel):
 
     def __init__(self):
         super().__init__()
+        self.TkdndVersion = TkinterDnD._require(self)
         self.title(f"FITS Extractor {version}")
         self.geometry("585x320")
         self.dnd_text = "Drag & Drop the .fits file or directory here"
@@ -778,8 +779,10 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
 
     return True
 
+def main():
+    app = FileSizeApp()
+    #app.mainloop()
+
 # Main
 if __name__ == "__main__":
-
-    app = FileSizeApp()
-    app.mainloop()      
+    main()
