@@ -22,7 +22,7 @@ import string
 import random
 import time
 
-version = "1.4.1"
+version = "1.4.2"
 
 obj_key = 'OBJECT'
 wv_unit_key = 'TUNIT1'

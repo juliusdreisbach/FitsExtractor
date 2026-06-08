@@ -40,9 +40,9 @@ right_frame.pack(side="right", padx=5, pady=5)
 
 ttk.Label(top_frame, text="FITS Extractor consists of two different applications. Please choose which one you want to use.", font=("Arial", 9)).pack(pady=5,fill='both', expand=True)
 
-ttk.Label(left_frame, text="EXTRACTOR v1.4.1", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
+ttk.Label(left_frame, text="EXTRACTOR v1.4.2", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
 ttk.Label(left_frame, text="Extract binary tables from FITS files and create 1D spectra.\nYou may also interpolate or normalize the data.\nAdditional features: Continuum Subtraction, S/N Calculation.\nA documentation can be found on the GitHub page.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
-button_old = tk.Button(left_frame, text="Run FITS Extractor 1.4.1", command=run_fits_extractor)
+button_old = tk.Button(left_frame, text="Run FITS Extractor 1.4.2", command=run_fits_extractor)
 button_old.pack(padx=20, pady=10)
 
 ttk.Label(right_frame, text="STACKER v1.0", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
