@@ -543,8 +543,9 @@ def check_file(file_path):
         table_columns = hdul[1].columns.names # BinTable Column names
 
         return table_columns
-    except:
+    except Exception as e:
         print("err: File throws error when extracting!")
+        print(f"err: {e}")
         return False
 
 def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_extract = False, do_interpolate = False, do_continuum_removal = False, do_normalize = False, do_sn_calc = False, show_plot = True):
@@ -575,9 +576,15 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         table_head = hdul[1].header # Table Header
         table_data = hdul[1].data  # BinTable
 
+        try:
+            obj_name = head[obj_key]
+        except:
+            obj_name = 'undefined'
 
-        obj_name = head[obj_key]
-        wv_unit = table_head[wv_unit_key]
+        try:
+            wv_unit = table_head[wv_unit_key]
+        except:
+            wv_unit = 'undefined'
 
         # Extract data columns
         wave = table_data[key_values[0]]
@@ -588,8 +595,9 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
 
         if do_status_extract:
             status = table_data[key_values[4]]
-    except:
+    except Exception as e:
         print("err: File throws error when extracting!")
+        print(f"err: {e}")
         return False
 
     print("--- Extracted data.")
@@ -602,21 +610,36 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         filtered_flux = flux
         filtered_err = err
 
+    #print(f"[INFO] raw wave array: {wave}")
+    #print(f"[INFO] raw flux array: {flux}")
+    #print(f"[INFO] raw error array: {err}")
+
     # Flatten arrays
-    wave_flat = wave[0].flatten()
-    flux_flat = filtered_flux[0].flatten()
-    err_flat = filtered_err[0].flatten()
-    if do_cont_extract:
+    do_flatten = len(wave) == 1 or len(flux) == 1 or len(err) == 1
+    if do_flatten:
+        if len(wave) == 1: wave_flat = wave[0].flatten()
+        if len(flux) == 1: flux_flat = filtered_flux[0].flatten()
+        if len(err) == 1: err_flat = filtered_err[0].flatten()
+    else:
+        wave_flat = wave
+        flux_flat = filtered_flux
+        err_flat = filtered_err
+
+    if do_cont_extract and do_flatten:
         cont_flat = cont[0].flatten()
 
     print("--- Filtered data.")
+
+    #print(f"[INFO] wave array: {wave_flat}")
+    #print(f"[INFO] flux array: {flux_flat}")
+    #print(f"[INFO] error array: {err_flat}")
 
     delta_wave = np.diff(wave_flat)
     mean_delta = np.mean(delta_wave)
     std_delta = np.std(delta_wave)
     rel_std = std_delta / mean_delta
 
-    #print(f"[INFO] mean_delta: {mean_delta} {wv_unit}; std_delta: {std_delta} {wv_unit}; rel_std: {rel_std*100} %")
+    print(f"[INFO] mean_delta: {mean_delta} {wv_unit}; std_delta: {std_delta} {wv_unit}; rel_std: {rel_std*100} %")
 
     if do_interpolate:
         new_wave = np.linspace(wave_flat.min(), wave_flat.max(), len(wave_flat))
