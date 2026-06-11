@@ -22,7 +22,7 @@ import string
 import random
 import time
 
-version = "1.4.2"
+version = "1.4.3"
 
 obj_key = 'OBJECT'
 wv_unit_key = 'TUNIT1'
@@ -354,7 +354,6 @@ def normalize_max(flux_values, flux_err_values):
         print(f"Unknown error: {e}")
         return flux_values, flux_err_values, 1
 
-# Currently not in use.
 def subtract_continuum(flux, cont):
     flx_len = len(flux)
     cnt_len = len(cont)
@@ -663,7 +662,12 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         new_wv_delta = (new_wave[-1] - new_wave[0]) / (len(new_wave) - 1)
 
     if do_continuum_removal:
-        it_smooth_flux, cont_flux, _, params = estimate_continuum_sg(new_wave,new_flux,window_length=601, polyorder=3,med_width=401, peak_sigma=5.0,mask_width_pix=60, iter_clip=True, niter=3)
+        if do_cont_extract:
+            cont_flux = subtract_continuum(new_flux, new_cont)
+            print("--- Subtracted provided continuum values.")
+        else:
+            it_smooth_flux, cont_flux, _, params = estimate_continuum_sg(new_wave,new_flux,window_length=601, polyorder=3,med_width=401, peak_sigma=5.0,mask_width_pix=60, iter_clip=True, niter=3)
+            print("--- Fitted and subtracted continuum.")
         cont_err = new_err
         # Deactivated until further notice
         """
@@ -674,7 +678,6 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
             cont_flux = subtract_continuum(new_flux, smooth_flux)
         cont_err = new_err
         """
-        print("--- Fitted and subtracted continuum.")
     else:
         cont_flux = new_flux
         cont_err = new_err
@@ -716,7 +719,7 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     header['CTYPE1'] = 'WAVELENGTH'
     header['CONTSUB'] = do_continuum_removal
     header.comments['CONTSUB'] = 'Iterative continuum subtraction'
-    if do_continuum_removal:
+    if do_continuum_removal and not do_cont_extract:
         header['PWINLEN'] = params[0]
         header.comments['PWINLEN'] = 'contsub window_length parameter'
         header['PPOL_ORD'] = params[1]
@@ -740,7 +743,7 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     header_err['CTYPE1'] = 'WAVELENGTH'
     header_err['CONTSUB'] = do_continuum_removal
     header_err.comments['CONTSUB'] = 'Iterative continuum subtraction'
-    if do_continuum_removal:
+    if do_continuum_removal and not do_cont_extract:
         header_err['PWINLEN'] = params[0]
         header_err.comments['PWINLEN'] = 'contsub window_length parameter'
         header_err['PPOL_ORD'] = params[1]

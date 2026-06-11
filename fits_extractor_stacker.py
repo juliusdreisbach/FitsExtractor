@@ -26,7 +26,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-version = "Stacker 1.0"
+version = "Stacker 1.0.1"
 
 obj_key = 'OBJECT'
 wv_unit_key = 'TUNIT1'
@@ -498,7 +498,7 @@ def save_as_fits(folder_path, save_name, flux, delta, first_wv):
     # Save header data
     header = hdu.header
     header['OBJECT'] = 'stacked'
-    header['CUNIT1'] = 'log'
+    #header['CUNIT1'] = 'log'
     header['CRPIX1'] = 1
     header['CRVAL1'] = first_wv
     header['CDELT1'] = delta

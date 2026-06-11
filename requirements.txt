@@ -1,5 +1,14 @@
+# FITS Extractor / FITS Extractor Stacker dependencies
+# Runtime requirements for fits_extractor_init.py, fits_extractor_base.py,
+# and fits_extractor_stacker.py.
+
 astropy>=7.1.1
 numpy>=2.1.2
 scipy>=1.16.0
 matplotlib>=3.9.2
 tkinterdnd2>=0.4.3
+
+# Required by FITS Extractor Stacker
+specutils>=2.0.0
+pandas>=2.2.0
+plotly>=5.24.0
