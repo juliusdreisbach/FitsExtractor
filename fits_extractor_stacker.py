@@ -2,9 +2,23 @@
 © 2026 Julius Richard Dreisbach – FITS Extractor Utility
 Designed for rapid spectrum extraction and normalization.
 
-You may use, copy, and modify this software for personal or educational purposes.
-Commercial use is not allowed without permission from the author.
-No warranty is provided.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import tkinter as tk
@@ -37,9 +51,6 @@ continuum_key = 'CONTINUUM'
 status_key = 'STATUS'
 
 show_maximum_files = 25
-
-# Set a folder to save the files into.
-folder_name = "extracted"
 
 class FileSizeApp(tk.Toplevel):
 
@@ -355,7 +366,7 @@ def wavelength_values(file_path):
 def stacking(file_path, specUnit, fluxUnit, binfactor, z=1, statistic="mean", single_plotting=False, save_name=False): #", min_Res = 10000" if you want/can check the resolution
     
     if not save_name:
-        save_name = time.strftime("%Y%m%d-%H%M%S")
+        save_name = "stacked_" + time.strftime("%Y%m%d-%H%M%S")
     
     fluxcon = FluxConservingResampler()
     folder_path = os.getcwd()

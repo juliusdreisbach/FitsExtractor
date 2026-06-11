@@ -2,9 +2,23 @@
 © 2026 Julius Richard Dreisbach – FITS Extractor Utility
 Designed for rapid spectrum extraction and normalization.
 
-You may use, copy, and modify this software for personal or educational purposes.
-Commercial use is not allowed without permission from the author.
-No warranty is provided.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import tkinter as tk
@@ -46,7 +60,7 @@ button_old = tk.Button(left_frame, text="Run FITS Extractor 1.4.3", command=run_
 button_old.pack(padx=20, pady=10)
 
 ttk.Label(right_frame, text="STACKER v1.0.1", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
-ttk.Label(right_frame, text="Stack already extracted spectra.\n\nFor now, no documentation can\nbe provided.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
+ttk.Label(right_frame, text="Stack already extracted spectra.\n\nA documentation can be found\non the GitHub page.", font=("Arial", 9)).pack(padx=20, pady=5,fill='both', expand=True)
 button_combi = tk.Button(right_frame, text="Run FITS Extractor Stacker 1.0.1", command=run_fits_extractor_stacker)
 button_combi.pack(padx=20, pady=10)
 

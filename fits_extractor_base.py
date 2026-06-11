@@ -2,9 +2,23 @@
 © 2026 Julius Richard Dreisbach – FITS Extractor Utility
 Designed for rapid spectrum extraction and normalization.
 
-You may use, copy, and modify this software for personal or educational purposes.
-Commercial use is not allowed without permission from the author.
-No warranty is provided.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import tkinter as tk
@@ -514,6 +528,23 @@ def estimate_continuum_sg(wave, flux, window_length=401, polyorder=3, med_width=
 
     return cont, y - cont, mask, [window_length, polyorder, med_width, peak_sigma, mask_width_pix, niter]
 
+def find_bintable_hdu(hdul):
+    """
+    Search through HDU list to find the first BinTable extension.
+    Returns tuple of (header, table_header, table_columns) or None if not found.
+    """
+    for i, hdu in enumerate(hdul):
+        try:
+            if hasattr(hdu, 'columns') and hdu.columns is not None:
+                table_columns = hdu.columns.names
+                if table_columns:
+                    head = hdul[0].header if i > 0 else hdu.header
+                    table_head = hdu.header
+                    return head, table_head, table_columns, i
+        except:
+            continue
+    return None
+
 def check_file(file_path):
     print(f"Checking for compatibility: {file_path}", end = ' ')
     filename_full = os.path.basename(file_path)
@@ -537,10 +568,12 @@ def check_file(file_path):
     print("successful.")
 
     try:
-        head = hdul[0].header # Header
-        table_head = hdul[1].header # Table Header
-        table_columns = hdul[1].columns.names # BinTable Column names
-
+        result = find_bintable_hdu(hdul)
+        if result is None:
+            print("err: No BinTable extension found!")
+            return False
+        
+        head, table_head, table_columns, hdu_index = result
         return table_columns
     except Exception as e:
         print("err: File throws error when extracting!")
@@ -571,9 +604,13 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
     print("successful.")
 
     try:
-        head = hdul[0].header # Header
-        table_head = hdul[1].header # Table Header
-        table_data = hdul[1].data  # BinTable
+        result = find_bintable_hdu(hdul)
+        if result is None:
+            print("err: No BinTable extension found!")
+            return False
+        
+        head, table_head, table_columns, hdu_index = result
+        table_data = hdul[hdu_index].data  # BinTable
 
         try:
             obj_name = head[obj_key]
@@ -696,7 +733,7 @@ def create_spectrum(file_path, key_values, do_cont_extract = False, do_status_ex
         norm_err = cont_err
 
     if do_sn_calc:
-        sn_vals = norm_flux / norm_err
+        sn_vals = np.divide(norm_flux, norm_err, where=norm_err!=0, out=np.zeros_like(norm_flux))
         print("--- Calculated S/N values.")
     else:
         sn_vals = [0] * norm_flux
