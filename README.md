@@ -10,4 +10,5 @@ in the according directory or install the required packages by yourself. Check t
 Continue by choosing the version you want to use.
 
 # User Manual
-[FITS_Extractor_User_Manual.pdf](https://github.com/user-attachments/files/25773166/FITS_Extractor_User_Manual.pdf)
+[FITS_Extractor_User_Manual.pdf](https://github.com/user-attachments/files/31032379/FITS_Extractor_User_Manual.pdf)
+
